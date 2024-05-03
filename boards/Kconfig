@@ -2535,6 +2535,18 @@ config ARCH_BOARD_STM32F411E_DISCO
 		This is a minimal configuration that supports low-level test of the
 		STMicro STM32F411E-Discovery Board.
 
+config ARCH_BOARD_STM32F427A_MINIMAL
+	bool "STM32F427A Minimal board"
+	depends on ARCH_CHIP_STM32F427A
+	---help---
+		Minimal board setup based on STMicro STM32F427AIT6 MCU.
+
+config ARCH_BOARD_STM32F427V
+	bool "STM32F427V Minimal board"
+	depends on ARCH_CHIP_STM32F427V
+	---help---
+		Minimal board setup based on STMicro STM32F427VIT6 MCU.
+
 config ARCH_BOARD_STM32F429I_DISCO
 	bool "STMicro STM32F429I-Discovery board"
 	depends on ARCH_CHIP_STM32F429Z
@@ -3404,6 +3416,8 @@ config ARCH_BOARD
 	default "stm32f334-disco"           if ARCH_BOARD_STM32F334_DISCO
 	default "stm32f4discovery"          if ARCH_BOARD_STM32F4_DISCOVERY
 	default "stm32f411e-disco"          if ARCH_BOARD_STM32F411E_DISCO
+	default "stm32f427a-minimal"		if ARCH_BOARD_STM32F427A_MINIMAL
+	default "stm32f427v"				if ARCH_BOARD_STM32F427V
 	default "stm32f429i-disco"          if ARCH_BOARD_STM32F429I_DISCO
 	default "stm32f746g-disco"          if ARCH_BOARD_STM32F746G_DISCO
 	default "stm32f769i-disco"          if ARCH_BOARD_STM32F769I_DISCO
@@ -4115,6 +4129,12 @@ source "boards/arm/stm32/stm32f3discovery/Kconfig"
 endif
 if ARCH_BOARD_STM32F411E_DISCO
 source "boards/arm/stm32/stm32f411e-disco/Kconfig"
+endif
+if ARCH_BOARD_STM32F427A_MINIMAL
+source "boards/arm/stm32/stm32f427a-minimal/Kconfig"
+endif
+if ARCH_BOARD_STM32F427V
+source "boards/arm/stm32/stm32f427v/Kconfig"
 endif
 if ARCH_BOARD_STM32F429I_DISCO
 source "boards/arm/stm32/stm32f429i-disco/Kconfig"
