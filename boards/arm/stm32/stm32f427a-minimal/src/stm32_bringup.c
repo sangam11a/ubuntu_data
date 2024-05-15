@@ -28,48 +28,73 @@
 #include <stdio.h>
 #include <debug.h>
 #include <errno.h>
+#include <string.h>
 
+#include <nuttx/spi/spi.h>
+#include <stm32_spi.h>
 #include <nuttx/board.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 
-#ifdef CONFIG_STM32_SPI4
-#  include <nuttx/mmcsd.h>
-#endif
-
-#if defined(CONFIG_MTD_SST25XX) || defined(CONFIG_MTD_PROGMEM)
+#if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM)
 #  include <nuttx/mtd/mtd.h>
 #endif
 
-#ifdef CONFIG_VIDEO_FB
-#  include <nuttx/video/fb.h>
+#ifndef CONFIG_STM32F427A_FLASH_MINOR
+#define CONFIG_STM32F427A_FLASH_MINOR 0
 #endif
 
-#ifdef CONFIG_USBMONITOR
-#  include <nuttx/usb/usbmonitor.h>
-#endif
-
-#ifndef CONFIG_STM32F427V_FLASH_MINOR
-#define CONFIG_STM32F427V_FLASH_MINOR 0
-#endif
-
-#ifdef CONFIG_STM32F427V_FLASH_CONFIG_PART
+#ifdef CONFIG_STM32F427A_FLASH_CONFIG_PART
 #ifdef CONFIG_PLATFORM_CONFIGDATA
 #  include <nuttx/mtd/configdata.h>
 #endif
 #endif
 
-#ifdef CONFIG_STM32_OTGHS
-#  include "stm32_usbhost.h"
-#endif
+#include <nuttx/sensors/lis3mdl.h>
 
 #include "stm32.h"
 #include "stm32f427a.h"
 
-#ifdef CONFIG_INPUT_BUTTONS_LOWER
-#  include <nuttx/input/buttons.h>
-#endif
+struct mag_priv_s
+{
+  struct lis3mdl_config_s dev;
+  xcpt_t handler;
+  void *arg;
+  uint32_t intcfg;
+};
 
+/* IRQ/GPIO access callbacks.  These operations all hidden behind
+ * callbacks to isolate the MRF24J40 driver from differences in GPIO
+ * interrupt handling by varying boards and MCUs.  If possible,
+ * interrupts should be configured on both rising and falling edges
+ * so that contact and loss-of-contact events can be detected.
+ *
+ *   irq_attach       - Attach the MRF24J40 interrupt handler to the GPIO
+ *                      interrupt
+ *   irq_enable       - Enable or disable the GPIO interrupt
+ */
+
+static int stm32_attach_irq(const struct lis3mdl_config_s *lower,
+                            xcpt_t handler, void *arg)
+{
+  struct mag_priv_s *priv = (struct mag_priv_s *)lower;
+
+  DEBUGASSERT(priv != NULL);
+
+  /* Just save the handler for use when the interrupt is enabled */
+
+  priv->handler = handler;
+  priv->arg     = arg;
+  return OK;
+}
+
+static struct mag_priv_s mag0 =
+{
+  .dev.attach = stm32_attach_irq,
+  .dev.spi_devid = SPIDEV_USER(0),
+  .handler = NULL,
+  .intcfg = GPIO_LIS3MDL_DRDY,
+};
 
 /****************************************************************************
  * Public Functions
@@ -91,33 +116,62 @@
 
 int stm32_bringup(void)
 {
-#if defined(CONFIG_STM32_SPI4)
-  struct spi_dev_s *spi;
+
+#if defined(CONFIG_STM32_SPI2)
+  struct spi_dev_s *spi2;
 #endif
+
+#if defined(CONFIG_STM32_SPI3)
+  struct spi_dev_s *spi3;
+#endif
+
+#if defined(CONFIG_STM32_SPI4)
+  struct spi_dev_s *spi4;
+#endif
+
+#if defined(CONFIG_STM32_SPI5)
+  struct spi_dev_s *spi5;
+#endif
+
 #if defined(CONFIG_MTD)
   struct mtd_dev_s *mtd;
-#if defined (CONFIG_MTD_SST25XX)
+#if defined (CONFIG_MTD_MT25QL)
   struct mtd_geometry_s geo;
-#endif
-#endif
+#endif  // CONFIG_MTD_MT25QL
+#endif  // CONFIG_MTD
+
 #if defined(CONFIG_MTD_PARTITION_NAMES)
-  const char *partname = CONFIG_STM32F427V_FLASH_PART_NAMES;
-#endif
+  const char *partname = CONFIG_STM32F427A_FLASH_PART_NAMES;
+#endif // CONFIG_MTD_PARTITION_NAMES
   int ret;
 
-#ifdef HAVE_PROC
-  /* mount the proc filesystem */
-
-  ret = nx_mount(NULL, CONFIG_NSH_PROC_MOUNTPOINT, "procfs", 0, NULL);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR,
-             "ERROR: Failed to mount the PROC filesystem: %d\n", ret);
-      return ret;
-    }
-#endif
-
   /* Configure SPI-based devices */
+
+
+#ifdef CONFIG_SENSORS_LIS3MDL
+
+  /* Init SPI Bus again */
+
+  spi5 = stm32_spibus_initialize(5);
+  if (!spi5)
+  {
+    printf("[BRING_UP] ERROR: Failed to Initialize SPI 5 bus.\n");
+  } else {
+    printf("[BRING_UP] Initialized bus on SPI port 5.\n");
+
+    SPI_SETFREQUENCY(spi5, 1000000);
+    SPI_SETBITS(spi5, 8);
+    SPI_SETMODE(spi5, SPIDEV_MODE0);
+  }
+
+  ret = lis3mdl_register("/dev/mag0", spi5, &mag0.dev);
+  if (ret < 0)
+  {
+    printf("[BRING_UP] Error: Failed to register LIS3MDL driver.\n");
+  } else {
+    printf("[BRING_UP] LIS3MDL registered on SPI 5.\n");
+  }
+#endif  // CONFIG_SENSORS_LIS3MDL
 
 #if defined(CONFIG_MTD) && defined(CONFIG_MTD_PROGMEM)
   mtd = progmem_initialize();
@@ -134,37 +188,40 @@ int stm32_bringup(void)
 
 #endif
 
-#ifdef CONFIG_STM32_SPI4
+#ifdef CONFIG_STM32_SPI3
   /* Get the SPI port */
 
-  syslog(LOG_INFO, "Initializing SPI port 4\n");
-
-  spi = stm32_spibus_initialize(4);
-  if (!spi)
+  syslog(LOG_INFO, "Initializing SPI port 3\n");
+  printf("Initalizaing SPI PORT 3.\n");
+  
+  spi3 = stm32_spibus_initialize(3);
+  if (!spi3)
     {
-      syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 4\n");
-      return -ENODEV;
+      syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 3\n");
+      printf("Error initialzing SPI PORT 3\n");
+    } else {
+      syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
+      printf("SPI PORT 3 Successfully Initalized.\n");
     }
 
-  syslog(LOG_INFO, "Successfully initialized SPI port 4\n");
 
   /* Now bind the SPI interface to the SST25F064 SPI FLASH driver.  This
    * is a FLASH device that has been added external to the board (i.e.
    * the board does not ship from STM with any on-board FLASH.
    */
 
-#if defined(CONFIG_MTD) && defined(CONFIG_MTD_SST25XX)
+#if defined(CONFIG_MTD) && defined(CONFIG_MTD_MT25QL)
   syslog(LOG_INFO, "Bind SPI to the SPI flash driver\n");
 
-  mtd = sst25xx_initialize(spi);
+  mtd = mt25ql_initialize(spi3);
   if (!mtd)
     {
-      syslog(LOG_ERR, "ERROR: Failed to bind SPI port 4 to the SPI FLASH"
+      syslog(LOG_ERR, "ERROR: Failed to bind SPI port 3 to the SPI FLASH"
                       " driver\n");
     }
   else
     {
-      syslog(LOG_INFO, "Successfully bound SPI port 4 to the SPI FLASH"
+      syslog(LOG_INFO, "Successfully bound SPI port 3 to the SPI FLASH"
                        " driver\n");
 
       /* Get the geometry of the FLASH device */
@@ -173,18 +230,17 @@ int stm32_bringup(void)
                        (unsigned long)((uintptr_t)&geo));
       if (ret < 0)
         {
-          ferr("ERROR: mtd->ioctl failed: %d\n", ret);
-          return ret;
+          printf("ERROR: mtd->ioctl failed: %d\n", ret);
         }
 
-#ifdef CONFIG_STM32F427V_FLASH_PART
+#ifdef CONFIG_STM32F427A_FLASH_PART
         {
           int partno;
           int partsize;
           int partoffset;
           int partszbytes;
           int erasesize;
-          const char *partstring = CONFIG_STM32F427V_FLASH_PART_LIST;
+          const char *partstring = CONFIG_STM32F427A_FLASH_PART_LIST;
           const char *ptr;
           struct mtd_dev_s *mtd_part;
           char  partref[16];
@@ -210,7 +266,7 @@ int stm32_bringup(void)
 
               if (partszbytes < erasesize)
                 {
-                  ferr("ERROR: Partition size is lesser than erasesize!\n");
+                  printf("ERROR: Partition size is lesser than erasesize!\n");
                   return -1;
                 }
 
@@ -218,7 +274,7 @@ int stm32_bringup(void)
 
               if ((partszbytes % erasesize) != 0)
                 {
-                  ferr("ERROR: Partition size is not multiple of"
+                  printf("ERROR: Partition size is not multiple of"
                        " erasesize!\n");
                   return -1;
                 }
@@ -227,10 +283,10 @@ int stm32_bringup(void)
                                           partszbytes / erasesize);
               partoffset += partszbytes / erasesize;
 
-#ifdef CONFIG_STM32F427V_FLASH_CONFIG_PART
+#ifdef CONFIG_STM32F427A_FLASH_CONFIG_PART
               /* Test if this is the config partition */
 
-              if (CONFIG_STM32F427V_FLASH_CONFIG_PART_NUMBER == partno)
+              if (CONFIG_STM32F427A_FLASH_CONFIG_PART_NUMBER == partno)
                 {
                   /* Register the partition as the config device */
 
@@ -245,7 +301,7 @@ int stm32_bringup(void)
 
 #if defined(CONFIG_MTD_SMART) && defined(CONFIG_FS_SMARTFS)
                   snprintf(partref, sizeof(partref), "p%d", partno);
-                  smart_initialize(CONFIG_STM32F427V_FLASH_MINOR,
+                  smart_initialize(CONFIG_STM32F427A_FLASH_MINOR,
                                    mtd_part, partref);
 #endif
                 }
@@ -297,110 +353,32 @@ int stm32_bringup(void)
               partno++;
             }
         }
-#else /* CONFIG_STM32F427V_FLASH_PART */
-
-      /* Configure the device with no partition support */
-
-      smart_initialize(CONFIG_STM32F427V_FLASH_MINOR, mtd, NULL);
-
-#endif /* CONFIG_STM32F427V_FLASH_PART */
+#endif /* CONFIG_STM32F427A_FLASH_PART */
     }
 
 #endif /* CONFIG_MTD */
-#endif /* CONFIG_STM32_SPI4 */
+#endif /* CONFIG_STM32_SPI3 */
 
-#ifdef CONFIG_VIDEO_FB
-  /* Initialize and register the framebuffer driver */
+// #if defined(CONFIG_RAMMTD) && defined(CONFIG_STM32F427A_RAMMTD)
+//   /* Create a RAM MTD device if configured */
 
-  ret = fb_register(0, 0);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: fb_register() failed: %d\n", ret);
-    }
-#endif
+//     {
+//       uint8_t *start =
+//           kmm_malloc(CONFIG_STM32F427A_RAMMTD_SIZE * 1024);
+//       mtd = rammtd_initialize(start,
+//                               CONFIG_STM32F427A_RAMMTD_SIZE * 1024);
+//       mtd->ioctl(mtd, MTDIOC_BULKERASE, 0);
 
-#if defined(CONFIG_RAMMTD) && defined(CONFIG_STM32F427V_RAMMTD)
-  /* Create a RAM MTD device if configured */
+//       /* Now initialize a SMART Flash block device and bind it to the MTD
+//        * device
+//        */
 
-    {
-      uint8_t *start =
-          kmm_malloc(CONFIG_STM32F427V_RAMMTD_SIZE * 1024);
-      mtd = rammtd_initialize(start,
-                              CONFIG_STM32F427V_RAMMTD_SIZE * 1024);
-      mtd->ioctl(mtd, MTDIOC_BULKERASE, 0);
+// #if defined(CONFIG_MTD_SMART) && defined(CONFIG_FS_SMARTFS)
+//       smart_initialize(CONFIG_STM32F427A_RAMMTD_MINOR, mtd, NULL);
+// #endif
+//     }
 
-      /* Now initialize a SMART Flash block device and bind it to the MTD
-       * device
-       */
-
-#if defined(CONFIG_MTD_SMART) && defined(CONFIG_FS_SMARTFS)
-      smart_initialize(CONFIG_STM32F427V_RAMMTD_MINOR, mtd, NULL);
-#endif
-    }
-
-#endif /* CONFIG_RAMMTD && CONFIG_STM32F427V_RAMMTD */
-
-#ifdef HAVE_USBHOST
-  /* Initialize USB host operation.  stm32_usbhost_initialize() starts a
-   * thread will monitor for USB connection and disconnection events.
-   */
-
-  ret = stm32_usbhost_initialize();
-  if (ret != OK)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize USB host: %d\n", ret);
-      return ret;
-    }
-#endif
-
-#ifdef HAVE_USBMONITOR
-  /* Start the USB Monitor */
-
-  ret = usbmonitor_start();
-  if (ret != OK)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to start USB monitor: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_INPUT_BUTTONS_LOWER
-  /* Register the BUTTON driver */
-
-  ret = btn_lower_initialize("/dev/buttons");
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: btn_lower_initialize() failed: %d\n", ret);
-    }
-#endif /* CONFIG_INPUT_BUTTONS_LOWER */
-
-#ifdef CONFIG_INPUT_STMPE811
-  /* Initialize the touchscreen */
-
-  ret = stm32_tsc_setup(0);
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_tsc_setup failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_SENSORS_L3GD20
-  ret = board_l3gd20_initialize(0, 5);
-  if (ret != OK)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize l3gd20 sensor:"
-             " %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_PWM
-  /* Initialize PWM and register the PWM device. */
-
-  ret = stm32_pwm_setup();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_pwm_setup() failed: %d\n", ret);
-    }
-#endif
+// #endif /* CONFIG_RAMMTD && CONFIG_STM32F427A_RAMMTD */
 
 #ifdef CONFIG_ADC
   /* Initialize ADC and register the ADC device. */
@@ -409,16 +387,6 @@ int stm32_bringup(void)
   if (ret < 0)
     {
       syslog(LOG_ERR, "ERROR: stm32_adc_setup() failed: %d\n", ret);
-    }
-#endif
-
-#ifdef CONFIG_STM32_CAN_CHARDRIVER
-  /* Initialize CAN and register the CAN driver. */
-
-  ret = stm32_can_setup();
-  if (ret < 0)
-    {
-      syslog(LOG_ERR, "ERROR: stm32_can_setup failed: %d\n", ret);
     }
 #endif
 
