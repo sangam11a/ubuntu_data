@@ -55,6 +55,13 @@
 #include "stm32.h"
 #include "stm32f427a.h"
 
+
+#ifdef CONFIG_SENSORS_MPU60X0
+  #include <nuttx/sensors/mpu60x0.h>
+#endif
+
+#ifdef CONFIG_SENSORS_LIS3MDL
+
 struct mag_priv_s
 {
   struct lis3mdl_config_s dev;
@@ -62,6 +69,7 @@ struct mag_priv_s
   void *arg;
   uint32_t intcfg;
 };
+
 
 /* IRQ/GPIO access callbacks.  These operations all hidden behind
  * callbacks to isolate the MRF24J40 driver from differences in GPIO
@@ -88,13 +96,7 @@ static int stm32_attach_irq(const struct lis3mdl_config_s *lower,
   return OK;
 }
 
-static struct mag_priv_s mag0 =
-{
-  .dev.attach = stm32_attach_irq,
-  .dev.spi_devid = SPIDEV_USER(0),
-  .handler = NULL,
-  .intcfg = GPIO_LIS3MDL_DRDY,
-};
+#endif
 
 /****************************************************************************
  * Public Functions
@@ -147,8 +149,47 @@ int stm32_bringup(void)
 
   /* Configure SPI-based devices */
 
+#ifdef CONFIG_SENSORS_MPU60X0
+struct mpu_config_s *mpu_config = NULL;
+  spi5 = stm32_spibus_initialize(5);
+  if(!spi5){
+    printf("[Bringup ] Error : Failed to initialize spi 5 bus");
+  }
+  else{
+    printf("[Bring up ] Successfully initialized spi 5 bus  for mpu");
+  }
+  SPI_SETFREQUENCY(spi5, 1000000);
+  SPI_SETBITS(spi5,8);
+  SPI_SETMODE(spi5, SPIDEV_MODE0);
+   mpu_config = kmm_zalloc(sizeof(struct mpu_config_s));
+   printf("the size of mpu_confi is %d", sizeof(mpu_config));
+    // if (mpu_config == NULL)
+    //   {
+    //     printf("ERROR: Failed to allocate mpu60x0 driver\n");
+    //   }
+    //  else{
+        mpu_config->spi = spi5;
+        mpu_config->spi_devid = SPIDEV_IMU(0);
+        ret = mpu60x0_register("/dev/mpu6050", mpu_config);
+        if(ret<0){
+          printf("[bring up] failed to initialize driver of mppu 6500");
+        }
+        else{
+          printf("[bringup ] successfully initialized driver of mpu 6500");
+        }
+    //  }
+#endif
 
 #ifdef CONFIG_SENSORS_LIS3MDL
+
+
+static struct mag_priv_s mag0 =
+{
+  .dev.attach = stm32_attach_irq,
+  .dev.spi_devid = SPIDEV_USER(0),
+  .handler = NULL,
+  .intcfg = GPIO_LIS3MDL_DRDY,
+};
 
   /* Init SPI Bus again */
 

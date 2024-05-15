@@ -85,6 +85,14 @@ void weak_function stm32_spidev_initialize(void)
   stm32_configgpio(GPIO_LIS3MDL_INT);
   #  endif
 
+  #  ifdef CONFIG_SENSORS_MPU60X0
+  /* Configure the SPI-based MPU60x0 MAG chip select GPIO */
+  printf("Configure GPIO for MPU60x0 SPI5 CS\n");
+  stm32_configgpio(GPIO_MPU_CS);
+  stm32_gpiowrite(GPIO_MPU_CS, true);
+  stm32_configgpio(GPIO_MPU_INT);
+  #  endif
+
 }
 
 /****************************************************************************
