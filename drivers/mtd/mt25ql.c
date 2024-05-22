@@ -41,6 +41,7 @@
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/spi/spi.h>
 #include <nuttx/mtd/mtd.h>
+#include <stdio.h>
 
 #ifndef MT25QL_H_
 #  define MT25QL_H_
@@ -1268,6 +1269,7 @@ static int mt25ql_ioctl(FAR struct mtd_dev_s *dev,
 
 FAR struct mtd_dev_s *mt25ql_initialize(FAR struct spi_dev_s *dev)
 {
+	printf("ckpt11");
   FAR struct mt25ql_dev_s *priv;
   int ret;
 
@@ -1304,6 +1306,7 @@ FAR struct mtd_dev_s *mt25ql_initialize(FAR struct spi_dev_s *dev)
 
       /* Identify the FLASH chip and get its capacity */
 
+	printf("ckpt12");
       ret = mt25ql_readid(priv);
       if (ret != OK)
         {
@@ -1319,6 +1322,7 @@ FAR struct mtd_dev_s *mt25ql_initialize(FAR struct spi_dev_s *dev)
 
   /* Return the implementation-specific state structure as the MTD device */
 
+	printf("ckpt3");
   finfo("Return %p\n", priv);
   return (FAR struct mtd_dev_s *)priv;
 }

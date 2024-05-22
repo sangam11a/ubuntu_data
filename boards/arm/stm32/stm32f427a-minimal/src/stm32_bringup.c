@@ -21,7 +21,7 @@
 /****************************************************************************
  * Included Files
  ****************************************************************************/
-
+#include<stdio.h>
 #include <nuttx/config.h>
 
 #include <stdbool.h>
@@ -36,9 +36,11 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/kmalloc.h>
 
-#if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM)
+#if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM) || defined(CONFIG_MTD_M25P)
 #  include <nuttx/mtd/mtd.h>
 #endif
+
+
 
 #ifndef CONFIG_STM32F427A_FLASH_MINOR
 #define CONFIG_STM32F427A_FLASH_MINOR 0
@@ -135,9 +137,9 @@ int stm32_bringup(void)
   struct spi_dev_s *spi5;
 #endif
 
-#if defined(CONFIG_MTD)
+#if defined(CONFIG_MTD) || defined(CONFIG_MTD_M25P)
   struct mtd_dev_s *mtd;
-#if defined (CONFIG_MTD_MT25QL)
+#if defined (CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_M25P)
   struct mtd_geometry_s geo;
 #endif  // CONFIG_MTD_MT25QL
 #endif  // CONFIG_MTD
@@ -251,10 +253,15 @@ static struct mag_priv_s mag0 =
    * the board does not ship from STM with any on-board FLASH.
    */
 
-#if defined(CONFIG_MTD) && defined(CONFIG_MTD_MT25QL)
+#if defined(CONFIG_MTD) && defined(CONFIG_MTD_M25P) || defined(CONFIG_MTD_MT25QL)
   syslog(LOG_INFO, "Bind SPI to the SPI flash driver\n");
-
+  printf("Reached ckpt 1\n");
+  #if defined(CONFIG_MTD_MT25QL)
   mtd = mt25ql_initialize(spi3);
+  #endif
+  #if defined(CONFIG_MTD_M25P)
+  mtd = mx25l_initialize_spi(spi3);
+  #endif
   if (!mtd)
     {
       syslog(LOG_ERR, "ERROR: Failed to bind SPI port 3 to the SPI FLASH"

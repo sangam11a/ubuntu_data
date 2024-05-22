@@ -23,7 +23,7 @@
  ****************************************************************************/
 
 #include <nuttx/config.h>
-
+#include<stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -75,6 +75,20 @@ void weak_function stm32_spidev_initialize(void)
   stm32_gpiowrite(GPIO_SFM_MODE, true);
   stm32_gpiowrite(GPIO_MUX_EN, true);
   #endif
+
+  #ifdef CONFIG_M25P
+  printf("Configure GPIO for MT25QL flash memory.\n");
+  stm32_configgpio(GPIO_MFM_CS);
+  stm32_configgpio(GPIO_SFM_CS);
+  stm32_configgpio(GPIO_MUX_EN);
+  stm32_configgpio(GPIO_SFM_MODE);
+
+  stm32_gpiowrite(GPIO_MFM_CS, true);
+  stm32_gpiowrite(GPIO_SFM_CS, true);
+  stm32_gpiowrite(GPIO_SFM_MODE, true);
+  stm32_gpiowrite(GPIO_MUX_EN, true);
+  #endif
+  
 
   #  ifdef CONFIG_SENSORS_LIS3MDL
   /* Configure the SPI-based LIS3MDL MAG chip select GPIO */
@@ -203,11 +217,12 @@ void stm32_spi5select(struct spi_dev_s *dev,
     case SPIDEV_USER(0):
       /* Set the CS pin for mag0*/
       printf("setting CS pin for Lis3mdl.\n");
-      stm32_gpiowrite(GPIO_LIS3MDL_CS, selected);
+      stm32_gpiowrite(GPIO_LIS3MDL_CS, !selected);
       break;
     case SPIDEV_IMU(0):
+     printf("setting CS pin for IMU.\n");
       /* Set the CS pin for IMU0*/
-      stm32_gpiowrite(GPIO_MPU_CS, selected);
+      stm32_gpiowrite(GPIO_MPU_CS, !selected);
       break;
 
   }
