@@ -38,6 +38,7 @@
 
 #if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM) || defined(CONFIG_MTD_M25P)
 #  include <nuttx/mtd/mtd.h>
+// #include <nuttx/mtd/mtd
 #endif
 
 
@@ -60,6 +61,10 @@
 
 #ifdef CONFIG_SENSORS_MPU60X0
   #include <nuttx/sensors/mpu60x0.h>
+#endif
+
+#ifdef CONFIG_MTD_MX25L
+  #include <nuttx/mtd/mtd.h>
 #endif
 
 #ifdef CONFIG_SENSORS_LIS3MDL
@@ -130,7 +135,7 @@ int stm32_bringup(void)
 #endif
 
 #if defined(CONFIG_STM32_SPI4)
-  struct spi_dev_s *spi4;
+  // struct spi_dev_s *spi4;
 #endif
 
 #if defined(CONFIG_STM32_SPI5)
@@ -139,6 +144,9 @@ int stm32_bringup(void)
 
 #if defined(CONFIG_MTD) || defined(CONFIG_MTD_M25P)
   struct mtd_dev_s *mtd;
+  #if defined(CONFIG_MTD_MX25L)
+struct mtd_dev_s *mtd4;
+  #endif
 #if defined (CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_M25P)
   struct mtd_geometry_s geo;
 #endif  // CONFIG_MTD_MT25QL
@@ -230,6 +238,23 @@ static struct mag_priv_s mag0 =
     }
 
 #endif
+// #if defined(CONFIG_MTD) && defined(CONFIG_MTD_M25P)
+  // mtd = progmem_initialize();
+//   if (mtd == NULL)
+//     {
+//       syslog(LOG_ERR, "ERROR: progmem_initialize\n");
+//     }
+
+//   ret = register_mtddriver("/dev/flash", mtd, 0, mtd);
+//   ret = register_partition_with_mtd("/dev/mtd",
+//                                 mode_t mode, mtd,
+//                                 off_t firstblock, off_t nblocks);
+//   if (ret < 0)
+//     {
+//       syslog(LOG_ERR, "ERROR: register_mtddriver() failed: %d\n", ret);
+//     }
+
+// #endif
 
 #ifdef CONFIG_STM32_SPI3
   /* Get the SPI port */
@@ -239,13 +264,15 @@ static struct mag_priv_s mag0 =
   
   spi3 = stm32_spibus_initialize(3);
   if (!spi3)
-    {
-      syslog(LOG_ERR, "ERROR: Failed to initialize SPI port 3\n");
-      printf("Error initialzing SPI PORT 3\n");
-    } else {
-      syslog(LOG_INFO, "Successfully initialized SPI port 3\n");
-      printf("SPI PORT 3 Successfully Initalized.\n");
-    }
+  {
+    printf("[BRING_UP] ERROR: Failed to Initialize SPI 3 bus.\n");
+  } else {
+    printf("[BRING_UP] Initialized bus on SPI port 3.\n");
+
+    SPI_SETFREQUENCY(spi3, 1000000);
+    SPI_SETBITS(spi3, 8);
+    SPI_SETMODE(spi3, SPIDEV_MODE0);
+  }
 
 
   /* Now bind the SPI interface to the SST25F064 SPI FLASH driver.  This
@@ -255,13 +282,27 @@ static struct mag_priv_s mag0 =
 
 #if defined(CONFIG_MTD) && defined(CONFIG_MTD_M25P) || defined(CONFIG_MTD_MT25QL)
   syslog(LOG_INFO, "Bind SPI to the SPI flash driver\n");
-  printf("Reached ckpt 1\n");
+  printf("Reached ckpt 1 bringup mtd\n");
   #if defined(CONFIG_MTD_MT25QL)
   mtd = mt25ql_initialize(spi3);
   #endif
-  #if defined(CONFIG_MTD_M25P)
-  mtd = mx25l_initialize_spi(spi3);
+  #if defined(CONFIG_MTD_MX25L)
+  // mtd4 = mx25l_initialize_spi(spi4);S
   #endif
+  #if defined(CONFIG_MTD_M25P)
+  mtd = m25p_initialize(spi3);//mx25l_initialize_spi(spi3);
+   ret = register_mtddriver("/dev/flash", mtd, 0, mtd);
+
+  // ret = register_partition_with_mtd("/dev/mtd",
+//                                 mode_t mode, mtd,
+//                                 off_t firstblock, off_t nblocks);
+  if (ret < 0)
+    {
+      syslog(LOG_ERR, "ERROR: register_mtddriver() failed: %d\n", ret);
+    }
+    
+  #endif
+
   if (!mtd)
     {
       syslog(LOG_ERR, "ERROR: Failed to bind SPI port 3 to the SPI FLASH"
@@ -280,6 +321,7 @@ static struct mag_priv_s mag0 =
         {
           printf("ERROR: mtd->ioctl failed: %d\n", ret);
         }
+        printf("The value of ret is %d \n",ret);
 
 #ifdef CONFIG_STM32F427A_FLASH_PART
         {
@@ -289,6 +331,7 @@ static struct mag_priv_s mag0 =
           int partszbytes;
           int erasesize;
           const char *partstring = CONFIG_STM32F427A_FLASH_PART_LIST;
+          // const char partstring = 4096;
           const char *ptr;
           struct mtd_dev_s *mtd_part;
           char  partref[16];
@@ -299,19 +342,24 @@ static struct mag_priv_s mag0 =
           ptr = partstring;
           partoffset = 0;
 
+
           /* Get the Flash erase size */
 
           erasesize = geo.erasesize;
-
+          printf("======================the errasesize is %d ======= partstring %d pointer(ptr) %d \n", erasesize, partsize);
           while (*ptr != '\0')
             {
               /* Get the partition size */
 
-              partsize = atoi(ptr);
+            
+              partsize = atoi(partstring);
               partszbytes = (partsize << 10); /* partsize is defined in KB */
 
               /* Check if partition size is bigger then erase block */
-
+          printf("======================the partsize and partszbytess,partoffset is %d and %d  and %d=======\n",partsize, partszbytes, partoffset);
+              if(partoffset >= partszbytes){
+                  break;
+                }
               if (partszbytes < erasesize)
                 {
                   printf("ERROR: Partition size is lesser than erasesize!\n");
@@ -328,17 +376,18 @@ static struct mag_priv_s mag0 =
                 }
 
               mtd_part    = mtd_partition(mtd, partoffset,
-                                          partszbytes / erasesize);
+                                          partszbytes / erasesize); 
+
               partoffset += partszbytes / erasesize;
 
 #ifdef CONFIG_STM32F427A_FLASH_CONFIG_PART
               /* Test if this is the config partition */
 
-              if (CONFIG_STM32F427A_FLASH_CONFIG_PART_NUMBER == partno)
+              if (CONFIG_M25P_MANUFACTURER == partno)
                 {
                   /* Register the partition as the config device */
 
-                  mtdconfig_register(mtd_part);
+                  // mtdconfig_register(mtd_part);
                 }
               else
 #endif
@@ -347,7 +396,7 @@ static struct mag_priv_s mag0 =
                    * to the MTD device.
                    */
 
-#if defined(CONFIG_MTD_SMART) && defined(CONFIG_FS_SMARTFS)
+#if defined(CONFIG_MTD_SMART) //&& defined(CONFIG_FS_SMARTFS)
                   snprintf(partref, sizeof(partref), "p%d", partno);
                   smart_initialize(CONFIG_STM32F427A_FLASH_MINOR,
                                    mtd_part, partref);

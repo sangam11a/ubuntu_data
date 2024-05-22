@@ -63,7 +63,7 @@ struct spi_dev_s *g_spidev5 = NULL;
 
 void weak_function stm32_spidev_initialize(void)
 {
-  #ifdef CONFIG_MT25QL
+  #ifdef CONFIG_MTD_MT25QL
   printf("Configure GPIO for MT25QL flash memory.\n");
   stm32_configgpio(GPIO_MFM_CS);
   stm32_configgpio(GPIO_SFM_CS);
@@ -76,7 +76,7 @@ void weak_function stm32_spidev_initialize(void)
   stm32_gpiowrite(GPIO_MUX_EN, true);
   #endif
 
-  #ifdef CONFIG_M25P
+  #ifdef CONFIG_MTD_M25P
   printf("Configure GPIO for MT25QL flash memory.\n");
   stm32_configgpio(GPIO_MFM_CS);
   stm32_configgpio(GPIO_SFM_CS);
@@ -171,10 +171,14 @@ void stm32_spi3select(struct spi_dev_s *dev,
 {
   spiinfo("devid: %d CS: %s\n",
           (int)devid, selected ? "assert" : "de-assert");
+  //         printf("devid: %d CS: %s\n",
+  //         (int)devid, selected ? "assert" : "de-assert");
+  // printf("Got spi3 selected chpt.\n");
   switch (devid)
   {
     case SPIDEV_FLASH(0):
-      stm32_gpiowrite(GPIO_MFM_CS, false);
+    //  printf("setting CS pin for MFM.\n");
+      stm32_gpiowrite(GPIO_MFM_CS, !selected);
       break;
   }
 }
@@ -189,12 +193,16 @@ uint8_t stm32_spi3status(struct spi_dev_s *dev, uint32_t devid)
 void stm32_spi4select(struct spi_dev_s *dev,
                       uint32_t devid, bool selected)
 {
-  spiinfo("devid: %%d CS: %s\n",
+  spiinfo("devid: %d CS: %s\n",
             (int)devid, selected ? "assert" : "de-assert");
+  printf("devid: %d CS: %s\n",
+  (int)devid, selected ? "assert" : "de-assert");
   switch (devid)
   {
     case SPIDEV_FLASH(0):
-      stm32_gpiowrite(GPIO_SFM_CS, selected);
+     printf("setting CS pin for flash.\n");
+      // stm32_gpiowrite(GPIO_MUX_EN, !selected);
+      stm32_gpiowrite(GPIO_SFM_CS, !selected);//GPIO_MUX_EN
       break;
   }
 }
