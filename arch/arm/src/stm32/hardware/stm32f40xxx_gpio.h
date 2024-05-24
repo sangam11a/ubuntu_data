@@ -25,7 +25,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define STM32_NGPIO_PORTS          ((STM32_NGPIO + 15) >> 4)
+#define STM32_NGPIO_PORTS          ((37 + 15) >> 4)
 
 /* Register Offsets *********************************************************/
 

@@ -56,6 +56,10 @@
 #  include <nuttx/video/fb.h>
 #endif
 
+#ifdef CONFIG_SENSORS_MPU60X0
+  #include <nuttx/sensors/mpu60x0.h>
+#endif
+
 #include "stm32f103_minimum.h"
 
 /* Conditional logic in stm32f103_minimum.h will determine if certain
