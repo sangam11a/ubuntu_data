@@ -681,8 +681,6 @@ CONFIG_ARCH_BOARD="stm32f427a-minimal"
 #
 # Board-Specific Options
 #
-# CONFIG_STM32F427A_FLASH is not set
-# CONFIG_STM32F427A_HIGHPRI is not set
 
 #
 # Board-Common Options
