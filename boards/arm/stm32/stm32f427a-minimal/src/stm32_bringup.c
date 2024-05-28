@@ -38,6 +38,7 @@
 
 #if defined(CONFIG_MTD_MT25QL) || defined(CONFIG_MTD_PROGMEM) || defined(CONFIG_MTD_M25P)
 #  include <nuttx/mtd/mtd.h>
+char MOUNT_POINT[20];
 // #include <nuttx/mtd/mtd
 #endif
 
@@ -398,8 +399,12 @@ static struct mag_priv_s mag0 =
 
 #if defined(CONFIG_MTD_SMART) //&& defined(CONFIG_FS_SMARTFS)
                   snprintf(partref, sizeof(partref), "p%d", partno);
+                  // snprintf(MOUNT_POINT, sizeof(MOUNT_POINT), "/dev/smart%d%sd1", partno);
                   smart_initialize(CONFIG_STM32F427A_FLASH_MINOR,
                                    mtd_part, partref);
+
+                  // snprintf(partref, sizeof(partref), "smart%d%sd1", partno);
+                              
 #endif
                 }
 

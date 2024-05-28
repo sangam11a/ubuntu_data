@@ -6242,10 +6242,14 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd,
       if (partname != NULL)
         {
           snprintf(dev->rwbuffer, 18, "/dev/smart%d%sd1", minor, partname);
+          
+
         }
       else
         {
           snprintf(dev->rwbuffer, 18, "/dev/smart%dd1", minor);
+          
+          
         }
 
       /* Inode private data is a reference to a struct containing
